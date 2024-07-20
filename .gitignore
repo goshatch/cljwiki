@@ -4,6 +4,7 @@
 .clj-kondo
 .lsp
 tmp/
+resources/wiki/*
 
 /target
 /classes

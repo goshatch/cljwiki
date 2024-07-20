@@ -1,5 +1,5 @@
 (ns wiki.core
-  (:require [ring.adapter.jetty :as jetty]
+  (:require [org.httpkit.server :as hk-server]
             [ring.middleware.params :as params]
             [ring.util.response :as response]
             [clojure.java.io :as io]
@@ -14,7 +14,9 @@
       (slurp file))))
 
 (defn write-page [page-name content]
-  (spit (io/file (str resources-dir page-name ".txt")) content))
+  (let [file (io/file (str resources-dir page-name ".txt"))]
+    (io/make-parents file)
+    (spit file content)))
 
 (defn render-page [page-name]
   (if-let [content (read-page page-name)]
@@ -24,21 +26,6 @@
 (defn save-page [page-name content]
   (write-page page-name content)
   (response/response (str "<html><body><h1>" page-name " saved</h1><a href='/w/" page-name "'>View page</a></body></html>")))
-
-;; (def routes
-;;   {"GET /"
-;;    (fn [_req]
-;;      {:status 200
-;;       :body "<html><body><h1>Welcome to the Wiki!</h1><a href='/w/Home'>Home</a></body></html>"})
-;;    "GET /w/*"
-;;    (fn [req]
-;;      (let [page-name (first (:path-params req))]
-;;        (render-page page-name)))
-;;    "POST /w/*"
-;;    (fn [req]
-;;      (let [page-name (first (:path-params req))
-;;            content (:content (:params req))]
-;;        (save-page page-name content)))})
 
 (def routes
   (router/routes
@@ -51,16 +38,30 @@
 
     "POST /w/*" req
     (let [page-name (first (:path-params req))
-          content (:content (:params req))]
+          content (get (:form-params req) "content")]
       (save-page page-name content))))
 
 (defn handler []
   (-> (router/router routes)
       (params/wrap-params)))
 
+(defonce server (atom nil))
+
+(defn start-server []
+  (when (nil? @server)
+    (reset! server (hk-server/run-server (handler) {:port 3001}))
+    (println "Server started on port 3001")))
+
+(defn stop-server []
+  (when (some? @server)
+    (@server :timeout 100)
+    (reset! server nil)
+    (println "Server stopped.")))
 
 (defn -main [& _args]
-  (jetty/run-jetty (handler) {:port 3001 :join? false}))
+  (start-server))
 
 (comment
-  (-main))
+  (-main)
+  (start-server)
+  (stop-server))
